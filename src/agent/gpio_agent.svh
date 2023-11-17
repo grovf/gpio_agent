@@ -5,6 +5,15 @@
  * DESCRIPTION : The GPIO agent is used to drive and read individual DUT pins.
  *               An object of this class should be instantiated in the user
  *               environment.
+ *
+ * CONTRIBUTORS:
+ *               Valerii Dzhafarov
+ *               Nazar Zibilyuk
+ *
+ * UPDATES     :
+ *               1. Add agent config usate. (2023, Valerii Dzhafarov)
+ *               2. Stylistic changes. Restore original coding style (2023, Nazar Zibilyuk)
+ *
  */
 
 class GpioAgent extends uvm_agent;
@@ -50,8 +59,10 @@ endclass: GpioAgent
     aport = new("aport", this);
 
     // get the GPIO agent configuration
-    if (!uvm_config_db #(GpioAgentCfg)::get(this, "", "gpio_agent_cfg_db", cfg)) begin
-      `uvm_fatal("GPIO_AGT", "Couldn't get the GPIO agent configuration")
+    if (cfg==null) begin
+      if( !uvm_config_db #(GpioAgentCfg)::get(this, "", "gpio_agent_cfg_db", cfg) ) begin
+        `uvm_fatal("GPIO_AGT", "Couldn't get the GPIO agent configuration")
+      end
     end
 
     // check if the virtual interface reference is populated
@@ -66,10 +77,13 @@ endclass: GpioAgent
       drv.vif    = cfg.vif;
       drv.mp_mas = cfg.vif;
       drv.mp_mon = cfg.vif;
+      drv.cfg = cfg;
+      sqcr.cfg = cfg;  
     end
 
     mon     = GpioMonitor::type_id::create("monitor", this);
     mon.cfg = cfg;
+        
     mon.mp  = cfg.vif;
   endfunction: build_phase
 

@@ -4,6 +4,14 @@
  *
  * DESCRIPTION : GPIO agent monitor. Used for recording DUT pins on every clock
  *               cycle and sending that information through the analysis port.
+ *
+ * CONTRIBUTORS:
+ *               Valerii Dzhafarov
+ *               Nazar Zibilyuk
+ *
+ * UPDATES     :
+ *               1. Make use of config (2023, Valerii Dzhafarov)
+ *               2. Stylistic changes (2023, Nazar Zibilyuk)
  */
 
 class GpioMonitor extends uvm_monitor;
@@ -28,6 +36,8 @@ class GpioMonitor extends uvm_monitor;
   extern virtual function void checkXZ  (GpioItem it);
   extern virtual task          run_phase(uvm_phase phase);
   extern virtual task          readPins (GpioItem it);
+  
+  extern virtual function void get_config();
 
 endclass: GpioMonitor
 
@@ -39,19 +49,19 @@ endclass: GpioMonitor
     string warn_string_x;
     string warn_string_z;
 
-    for (int i = 0; i < W_IN; i++) begin
+    for (int i = 0; i < cfg.width_i; i++) begin
       if          (it.gpio_in[i] === 1'bX) begin
-        warn_string_x = $sformatf({warn_string_x, " %s"}, it.pin_name_i[i].name());
+        warn_string_x = $sformatf({warn_string_x, " %s"}, cfg.pin_name_i[i]);
       end else if (it.gpio_in[i] === 1'bZ) begin
-        warn_string_z = $sformatf({warn_string_z, " %s"}, it.pin_name_i[i].name());
+        warn_string_z = $sformatf({warn_string_z, " %s"}, cfg.pin_name_i[i]);
       end
     end
 
-    for (int i = 0; i < W_OUT; i++) begin
+    for (int i = 0; i < cfg.width_o; i++) begin
       if          (it.gpio_out[i] === 1'bX) begin
-        warn_string_z = $sformatf({warn_string_z, " %s"}, it.pin_name_o[i].name());
+        warn_string_z = $sformatf({warn_string_z, " %s"}, cfg.pin_name_o[i]);
       end else if (it.gpio_out[i] === 1'bZ) begin
-        warn_string_z = $sformatf({warn_string_z, " %s"}, it.pin_name_o[i].name());
+        warn_string_z = $sformatf({warn_string_z, " %s"}, cfg.pin_name_o[i]);
       end
     end
 
@@ -67,22 +77,29 @@ endclass: GpioMonitor
   task GpioMonitor::readPins(input GpioItem it);
     @mp.cb_monitor;
 
-    for (int i = 0; i < W_IN; i++) begin
+    for (int i = 0; i < cfg.width_i; i++) begin
       it.gpio_in[i]  = mp.cb_monitor.gpio_in[i];
     end
 
-    for (int i = 0; i < W_OUT; i++) begin
+    for (int i = 0; i < cfg.width_o; i++) begin
       it.gpio_out[i] = mp.cb_monitor.gpio_out[i];
     end
   endtask: readPins
+
+  function void GpioMonitor::get_config();
+    if (cfg == null) begin
+      `uvm_fatal("GPIO_AGT", "Couldn't get the GPIO agent configuration")
+    end
+  endfunction: get_config
+
 
   //----------------------------------------------------------------------------
 
   task GpioMonitor::run_phase(uvm_phase phase);
     GpioItem it;
     it          = GpioItem::type_id::create("it_mon");
-    it.gpio_in  = new [W_IN];
-    it.gpio_out = new [W_OUT];
+    it.gpio_in  = new [cfg.width_i];
+    it.gpio_out = new [cfg.width_o];
 
     forever begin
     

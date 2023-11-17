@@ -4,6 +4,15 @@
  *
  * DESCRIPTION : GPIO agent driver. Used for translating sequence items into pin
  *               wiggles.
+ *
+ * CONTRIBUTORS:
+ *               Valerii Dzhafarov
+ *               Nazar Zibilyuk
+ *
+ * UPDATES     :
+ *               1. Add using and checkint config (2023, Valerii Dzhafarov)
+ *               2. Improve naming (2023, Valerii Dzhafarov)
+ *               3. Stylistic changes (2023, Nazar Zibilyuk)
  */
 
 class GpioDriver extends uvm_driver #(GpioItem);
@@ -14,6 +23,7 @@ class GpioDriver extends uvm_driver #(GpioItem);
   virtual GpioIf.mp_master  mp_mas;
   virtual GpioIf.mp_monitor mp_mon;
 
+  GpioAgentCfg              cfg;
   // Constructor
   function new(string name = "GpioDriver", uvm_component parent);
     super.new(name, parent);
@@ -26,6 +36,7 @@ class GpioDriver extends uvm_driver #(GpioItem);
   extern virtual task readGpioPins  (input GpioItem it, output GpioItem rsp, input bit is_sync);
   extern virtual task run_phase     (uvm_phase phase);
 
+  extern virtual function void check_cfg();
 endclass: GpioDriver
 
 //******************************************************************************
@@ -34,7 +45,7 @@ endclass: GpioDriver
 
   task GpioDriver::driveInit();
     @mp_mas.cb_master;
-    mp_mas.cb_master.gpio_out <= gpio_out_init;
+    mp_mas.cb_master.gpio_out <= cfg.gpio_out_init;
   endtask: driveInit
 
   //----------------------------------------------------------------------------
@@ -45,11 +56,11 @@ endclass: GpioDriver
       @mp_mas.cb_master;
     end
 
-    foreach (it.pin_name_o[i]) begin
+    foreach (it.gpio_out[i]) begin
       if (is_sync) begin
-        mp_mas.cb_master.gpio_out[it.pin_name_o[i]] <= it.gpio_out[i];
+        mp_mas.cb_master.gpio_out[i] <= it.gpio_out[i];
       end else begin
-        vif.gpio_out[it.pin_name_o[i]]              <= it.gpio_out[i];
+        vif.gpio_out[i]              <= it.gpio_out[i];
       end
     end
   endtask: driveGpioPins
@@ -67,11 +78,11 @@ endclass: GpioDriver
       #(it.delay * 1ns);
     end
 
-    foreach (it.pin_name_o[i]) begin
+    foreach (it.gpio_out[i]) begin
       if (is_sync) begin
-        mp_mas.cb_master.gpio_out[it.pin_name_o[i]] <= it.gpio_out[i];
+        mp_mas.cb_master.gpio_out[i] <= it.gpio_out[i];
       end else begin
-        vif.gpio_out[it.pin_name_o[i]]              <= it.gpio_out[i];
+        vif.gpio_out[i]              <= it.gpio_out[i];
       end
     end
   endtask: driveGpioPinsW
@@ -80,38 +91,46 @@ endclass: GpioDriver
 
   task GpioDriver::readGpioPins(input GpioItem it, output GpioItem rsp, input bit is_sync);
     rsp = GpioItem::type_id::create("rsp");
-    rsp.gpio_in  = new [it.pin_name_i.size()];
-    rsp.gpio_out = new [it.pin_name_o.size()];
+    rsp.gpio_in  = new [cfg.width_i];
+    rsp.gpio_out = new [cfg.width_o];
 
     // wait for clock only if synchronous read
     if (is_sync) begin
       @mp_mon.cb_monitor;
     end
 
-    foreach (it.pin_name_i[i]) begin
+    foreach (rsp.gpio_in[i]) begin
       if (is_sync) begin
-        rsp.gpio_in[i] = mp_mon.cb_monitor.gpio_in[it.pin_name_i[i]];
+        rsp.gpio_in[i] = mp_mon.cb_monitor.gpio_in[i];
       end else begin
-        rsp.gpio_in[i] = vif.gpio_in[it.pin_name_i[i]];
+        rsp.gpio_in[i] = vif.gpio_in[i];
       end
     end
 
-    foreach (it.pin_name_o[i]) begin
+    foreach (rsp.gpio_out[i]) begin
       if (is_sync) begin
-        rsp.gpio_out[i] = mp_mon.cb_monitor.gpio_out[it.pin_name_o[i]];
+        rsp.gpio_out[i] = mp_mon.cb_monitor.gpio_out[i];
       end else begin
-        rsp.gpio_out[i] = vif.gpio_out[it.pin_name_o[i]];
+        rsp.gpio_out[i] = vif.gpio_out[i];
       end
     end
 
     rsp.set_id_info(it);
   endtask: readGpioPins
 
+  function void GpioDriver::check_cfg();
+    if (cfg == null) begin
+      `uvm_fatal("GPIO_AGT", "Couldn't get the GPIO agent configuration")
+    end
+  endfunction: check_cfg
+
+
   //----------------------------------------------------------------------------
 
   task GpioDriver::run_phase(uvm_phase phase);
     GpioItem it, rsp;
 
+    check_cfg();
     driveInit();
     forever begin
       

@@ -7,22 +7,38 @@
  *
  *               GPIO agent inputs  == DUT outputs
  *               GPIO agent outputs == DUT inputs
+ *
+ * CONTRIBUTORS:
+ *               Valerii Dzhafarov
+ *               Nazar Zibilyuk
+ *
+ * UPDATES     :
+ *               1. Add skew and clocking blocks (2023, Valerii Dzhafarov)
+ *               2. Add width parameterization (2023, Nazar Zibilyuk)
  */
 
-interface GpioIf(
+`ifndef GPIO_CLOCKING_IN_SKEW
+  `define GPIO_CLOCKING_IN_SKEW #1step
+`endif
+
+`ifndef GPIO_CLOCKING_OUT_SKEW
+  `define GPIO_CLOCKING_OUT_SKEW #0
+`endif
+
+interface GpioIf #(
+  parameter INPUT_NUM  = 1024,
+  parameter OUTPUT_NUM = 1024
+)(
   input logic clk,
   input logic rst
 );
-
-  timeunit        1ns;
-  timeprecision 100ps;
 
 //******************************************************************************
 // Ports
 //******************************************************************************
 
-  wire  [1023:0] gpio_in;
-  logic [1023:0] gpio_out;
+  wire  [ INPUT_NUM - 1:0] gpio_in;
+  logic [OUTPUT_NUM - 1:0] gpio_out;
 
 //******************************************************************************
 // Clocking Blocks
@@ -30,14 +46,14 @@ interface GpioIf(
 
   // GPIO Master clocking block
   clocking cb_master @(posedge clk);
-    default input #1step output #1step;
+    default input `GPIO_CLOCKING_IN_SKEW output `GPIO_CLOCKING_OUT_SKEW;
     input  gpio_in;
     output gpio_out;
   endclocking
 
   // GPIO Monitor clocking block
   clocking cb_monitor @(posedge clk);
-    default input #1step;
+    default input `GPIO_CLOCKING_IN_SKEW;
     input  gpio_in, gpio_out;
   endclocking
 
